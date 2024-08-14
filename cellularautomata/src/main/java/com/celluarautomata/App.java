@@ -34,6 +34,7 @@ public class App extends Application {
 
     private GridPane pane = new GridPane();
     public List<Pair<Integer, Integer>> positions = new ArrayList<>();
+    private boolean cellDestroyed = false; // keep track of if cell is alive
 
     @Override
     public void start(Stage stage) throws IOException {
@@ -41,8 +42,8 @@ public class App extends Application {
         Button button1 = new Button("hi");
         int[][] test = new int[8][8]; // board to store context of scene
         test[3][2] = 1;
-        test[1][2] = 1;
-        test[1][3] = 1;
+        test[3][4] = 1;
+
         Rectangle rect = new Rectangle(30, 30);
 
         AtomicInteger i = new AtomicInteger(3);
@@ -53,11 +54,12 @@ public class App extends Application {
         genRects(test, pane); // it is possible to draw rectangles based on array
 
         Scene scene = new Scene(pane, 240, 240);
+        int l = positions.size();
 
         stage.setScene(scene);
         // AtomicInteger i = new AtomicInteger(0); // numbers that will be increased
         // must be handled concurrently
-        System.out.println(neighbors(positions.get(0), test));
+
         stage.show();
 
         scene.setOnKeyPressed(new EventHandler<KeyEvent>() {
@@ -66,13 +68,63 @@ public class App extends Application {
             public void handle(KeyEvent arg0) {
 
                 KeyCode key = arg0.getCode();
-
-                if (key == KeyCode.W) {
-                    test[i.get()][j.get()] = 0;
-                    test[i.get()][j.decrementAndGet()] = 1;
-                    System.out.println(test[i.get()][j.get()]);
-                    genRects(test, pane);
+                if (key == KeyCode.CAPS) {
                     System.out.println(positions);
+                }
+                if (!cellDestroyed) { // if our cell is killed it can no longer move
+                    if (key == KeyCode.W) {
+                        test[i.get()][j.get()] = 0;
+                        test[i.get()][j.decrementAndGet()] = 1;
+
+                        genRects(test, pane);
+                        System.out.println(positions);
+                    }
+
+                    if (key == KeyCode.A) {
+                        test[i.get()][j.get()] = 0;
+                        test[i.decrementAndGet()][j.get()] = 1;
+
+                        genRects(test, pane);
+                        System.out.println(positions);
+                    }
+
+                    if (key == KeyCode.S) {
+                        test[i.get()][j.get()] = 0;
+                        test[i.get()][j.incrementAndGet()] = 1;
+
+                        genRects(test, pane);
+                        System.out.println(positions);
+                    }
+
+                    if (key == KeyCode.D) {
+                        test[i.get()][j.get()] = 0;
+                        test[i.incrementAndGet()][j.get()] = 1;
+
+                        genRects(test, pane);
+                        System.out.println(positions);
+                    }
+                    Iterator<Pair<Integer, Integer>> iter = positions.iterator();
+                    while (iter.hasNext()) {
+                        Pair<Integer, Integer> position = iter.next();
+                        System.out.println("NEW Pos: " + position);
+                        int neighbors = neighbors(position, test); // generate neighbors for a position
+                        int x = position.getKey(); // get x position
+                        int y = position.getValue(); // get y position
+
+                        // System.out.println(neighbors);
+                        if (neighbors >= 1) { // check if the neighbors is in a threshold (e.g = 2 move cell, = 0 kill
+                                              // cell)
+                            // but in this case we're just killing
+                            System.out.println("Neighbors: " + neighbors + " x: " + x + "y: " + y);
+                            test[x][y] = 0; // set it to 0, killing it
+                            System.out.println(test[x][y]);
+                            genRects(test, pane); // redraw board
+                            cellDestroyed = true; // kill the cell
+                            System.out.println("Deleting Cell: " + x + y);
+                        } else {
+                            System.out.println(neighbors);
+                        }
+                    }
                 }
             }
 
@@ -89,40 +141,39 @@ public class App extends Application {
     }
 
     public int neighbors(Pair<Integer, Integer> p, int[][] board) {
-        AtomicInteger neighbors = new AtomicInteger(0);
-        // for testing purposes we will allow cell to live if >2 neighbors
-
+        int neighbors = 0;
         int x = p.getKey();
         int y = p.getValue();
 
-        if (board[x - 1][y] == 1) { // if square above
-            neighbors.incrementAndGet();
+        // Check for boundaries and count live neighbors around the cell
+        if (x > 0 && board[x - 1][y] == 1) { // above
+            neighbors++;
         }
-        if (board[x][y + 1] == 1) { // if square right
-            neighbors.incrementAndGet();
+        if (y < board[0].length - 1 && board[x][y + 1] == 1) { // right
+            neighbors++;
         }
-        if (board[x + 1][y] == 1) { // square down
-            neighbors.incrementAndGet();
+        if (x < board.length - 1 && board[x + 1][y] == 1) { // below
+            neighbors++;
         }
-        if (board[x][y - 1] == 1) {
-            neighbors.incrementAndGet();
+        if (y > 0 && board[x][y - 1] == 1) { // left
+            neighbors++;
         }
 
-        return neighbors.get();
+        return neighbors;
     }
 
     public void genRects(int[][] board, GridPane pane) {
         // first loop rows
-        positions.clear();
+        positions.clear(); // clear positions at start to avoid duplicates
         for (int i = 0; i < 8; i++) {
             // then columns
             for (int j = 0; j < 8; j++) {
-                if (board[i][j] == 1) {
+                if (board[i][j] == 1) { // if board = 1, draw a black rectangle(cell)
                     pane.add(new Rectangle(30, 30), i, j);
-                    System.out.println("Column: " + i + " Row: " + j);
-                    Pair<Integer, Integer> p = new Pair<Integer, Integer>(i, j);
-                    positions.add(p);
-                } else {
+
+                    Pair<Integer, Integer> p = new Pair<Integer, Integer>(i, j); // create position
+                    positions.add(p); // store its position
+                } else { // draw a white one to maintain grid layout
                     Rectangle r = new Rectangle(30, 30);
                     r.setFill(Color.WHITESMOKE);
                     pane.add(r, i, j);
@@ -137,7 +188,7 @@ public class App extends Application {
         i.incrementAndGet();
         int x = i.get();
         pane.getChildren().remove(rect);
-        System.out.println(i);
+
         // Add the rectangle to the new position (e.g., position (1, 1))
         pane.add(rect, 1, x); // Change these coordinates as needed
 
